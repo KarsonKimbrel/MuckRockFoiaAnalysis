@@ -260,8 +260,8 @@ def plotSuccessesByMonth(foiaRequests):
 	plt.plot(x, fit, 'r--')
 	plt.savefig('figures/monthly_histogram_successful_percentage.png')
 	
-	normalityTests(yFilteredTotal, 'FOIA Requests By Month', 0.01)
-	normalityTests(yFilteredSuccessPercent, 'Percentages of Successful FOIA Requests By Month', 0.01)
+	normalityTests(yFilteredTotal, 'FOIA Requests By Month', 0.05)
+	normalityTests(yFilteredSuccessPercent, 'Percentages of Successful FOIA Requests By Month', 0.05)
 	return
 
 	
@@ -273,12 +273,12 @@ def normalityTests(data, title, significanceLevel=0.05):
 	print('Ha: The distribution of ' + title + ' is not normal.')
 	print('TS: W=' + '{:.4f}'.format(W))
 	if pValue <= significanceLevel:
-		print('P-Value: P=' + '{:.4f}'.format(pValue) + ' < ' + '{:.4f}'.format(pValue))
+		print('P-Value: P=' + '{:.4f}'.format(pValue) + ' < ' + '{:.4f}'.format(significanceLevel))
 		print('Reject Ho. At the alpha={:.2f}'.format(significanceLevel) + ' significance level, there is sufficiant evidence to indicate that the distribution of ' + title + ' is not normal.')
 		print('')
 		print('The distribution of ' + title + ' IS NOT normal.')
 	else:
-		print('P-Value: P=' + '{:.4f}'.format(pValue) + ' !< ' + '{:.4f}'.format(pValue))
+		print('P-Value: P=' + '{:.4f}'.format(pValue) + ' !< ' + '{:.4f}'.format(significanceLevel))
 		print('Do not reject Ho. At the alpha={:.2f}'.format(significanceLevel) + ' significance level, there is insufficiant evidence to indicate that the distribution of ' + title + ' is not normal.')
 		print('')
 		print('The distribution of ' + title + ' IS normal.')
