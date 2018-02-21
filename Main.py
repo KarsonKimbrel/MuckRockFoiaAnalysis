@@ -8,7 +8,7 @@ import RetrieveDataset as retrieve
 import scipy.stats as stats
 
 
-YEAR_START = 2012
+YEAR_START = 2013
 YEAR_END = 2017
 
 
@@ -52,24 +52,40 @@ def plotRequestStatuses(foiaRequests):
 	statuses = np.unique(statuses)
 	statusCount = {}
 	total = 0
+	totalSuccessful = 0
+	totalUnsuccessful = 0
 	for status in statuses:
 		statusCount[status] = 0
 	for foia in foiaRequests:
 		statusCount[foia['status']] += 1
 		total += 1
+		if isFoiaRequestSuccessful(foia):
+			totalSuccessful += 1
+		else:
+			totalUnsuccessful += 1
 	other = 0
 	for status in statuses:
-		if ((statusCount[status] / total) * 100) < 1.0:
+		if ((statusCount[status] / total) * 100) < 4.0:
 			other += statusCount[status]
 			del statusCount[status]
 	statusCount['other'] = other
 	statusCount = dict(sorted(statusCount.items(), key=operator.itemgetter(1)))
-	fig = figure()
+	
+	fig = figure(7)
 	plt.title('Breakdown of FOIA Request Statuses')
 	plt.pie(list(statusCount.values()), autopct='%1.1f%%', counterclock=False)
 	plt.axis('equal')
 	plt.legend(labels=list(statusCount.keys()))
 	plt.savefig('figures/statuses.png')
+	
+	legend = ['Successful', 'Unsuccessful']
+	colors = ['green', 'red']
+	fig = figure(7)
+	plt.title('Breakdown of FOIA Request Statuses')
+	plt.pie([totalSuccessful, totalUnsuccessful], colors=colors, autopct='%1.1f%%', counterclock=True)
+	plt.axis('equal')
+	plt.legend(labels=legend)
+	plt.savefig('figures/statuses_simple.png')
 	return
 
 
@@ -145,7 +161,7 @@ def plotSuccessesByMonth(foiaRequests):
 	minDate = None
 	maxDate = None
 	Xlabels = []
-	for year in np.arange(2009, 2019):
+	for year in np.arange(YEAR_START-1, YEAR_END+2):
 		for month in np.arange(1, 13):
 			if (month < 10):
 				key = str(year) + '-0' + str(month)
@@ -182,16 +198,16 @@ def plotSuccessesByMonth(foiaRequests):
 			YsuccessPercentage.append(0)
 	
 	fig = figure()
-	plt.title('FOIA Requests By Month')
+	plt.title('FOIA Requests By Year and Month')
 	plt.xlabel('Month')
 	plt.ylabel('Number of Requests')
 	plt.bar(Xlabels, Ytotal)
 	plt.xticks(Xlabels, Xlabels, rotation='vertical')
-	plt.xlim('2010-04', '2018-01')
+	plt.xlim(str(YEAR_START-1) + '-12', str(YEAR_END+1) + '-01')
 	plt.savefig('figures/monthly_total.png')
 	
 	fig = figure()
-	plt.title('FOIA Requests By Month')
+	plt.title('FOIA Requests By Year and Month')
 	plt.xlabel('Month')
 	plt.ylabel('Number of Requests')
 	X = np.arange(0, len(Xlabels))
@@ -203,9 +219,9 @@ def plotSuccessesByMonth(foiaRequests):
 	xRange = [-1,-1]
 	i = 0
 	for label in Xlabels:
-		if label == '2010-04':
+		if label == str(YEAR_START-1) + '-12':
 			xRange[0] = i
-		if label == '2018-01':
+		if label == str(YEAR_END+1) + '-01':
 			xRange[1] = i
 		i += 1
 	plt.xlim(xRange[0], xRange[1])
@@ -213,12 +229,12 @@ def plotSuccessesByMonth(foiaRequests):
 	plt.savefig('figures/monthly_breakdown.png')
 	
 	fig = figure()
-	plt.title('Percentage of Successful FOIA Requests By Month')
+	plt.title('Percentage of Successful FOIA Requests By Year and Month')
 	plt.xlabel('Month')
 	plt.ylabel('Percentage of Successful Requests')
 	plt.bar(Xlabels, YsuccessPercentage)
 	plt.xticks(Xlabels, Xlabels, rotation='vertical')
-	plt.xlim('2010-04', '2018-01')
+	plt.xlim(str(YEAR_START-1) + '-12', str(YEAR_END+1) + '-01')
 	plt.savefig('figures/monthly_percent_successful.png')
 	
 	minIndex = None
@@ -240,7 +256,7 @@ def plotSuccessesByMonth(foiaRequests):
 		x += 1
 		
 	fig = figure()
-	plt.title('Histogram of FOIA Requests By Month')
+	plt.title('Histogram of FOIA Requests By Year and Month')
 	n, bins, patches = plt.hist(yFilteredTotal, bins='auto', edgecolor='black', normed=True)
 	mu = np.mean(yFilteredTotal)
 	sigma = np.std(yFilteredTotal)
@@ -251,7 +267,7 @@ def plotSuccessesByMonth(foiaRequests):
 	plt.savefig('figures/monthly_histogram.png')
 		
 	fig = figure()
-	plt.title('Histogram of Percentages of Successful FOIA Requests By Month')
+	plt.title('Histogram of Percentages of Successful FOIA Requests By Year and Month')
 	n, bins, patches = plt.hist(yFilteredSuccessPercent, bins='auto', edgecolor='black', normed=True)
 	mu = np.mean(yFilteredSuccessPercent)
 	sigma = np.std(yFilteredSuccessPercent)
@@ -260,8 +276,8 @@ def plotSuccessesByMonth(foiaRequests):
 	plt.plot(x, fit, 'r--')
 	plt.savefig('figures/monthly_histogram_successful_percentage.png')
 	
-	normalityTests(yFilteredTotal, 'FOIA Requests By Month', 0.05)
-	normalityTests(yFilteredSuccessPercent, 'Percentages of Successful FOIA Requests By Month', 0.05)
+	normalityTests(yFilteredTotal, 'FOIA Requests By Year and Month', 0.01)
+	normalityTests(yFilteredSuccessPercent, 'Percentages of Successful FOIA Requests By Year and Month', 0.01)
 	return
 
 	
@@ -315,7 +331,7 @@ def plotSuccessesByAverageMonth(foiaRequests):
 	data['normalized'] = {}
 	data['months'] = {}
 	data['years'] = {}
-	for year in np.arange(2009, 2019):
+	for year in np.arange(YEAR_START-1, YEAR_END+1):
 		data['years'][year] = {}
 	for month in X:
 		data['unnormalized'][month] = {}
@@ -327,7 +343,7 @@ def plotSuccessesByAverageMonth(foiaRequests):
 		data['normalized'][month]['successes'] = 0
 		data['normalized'][month]['failures'] = 0
 		data['normalized'][month]['percentageSuccess'] = 0
-		for year in np.arange(2009, 2019):
+		for year in np.arange(YEAR_START-1, YEAR_END+1):
 			data['years'][year][month] = {}
 			data['years'][year][month]['total'] = 0
 			data['years'][year][month]['successes'] = 0
@@ -349,7 +365,7 @@ def plotSuccessesByAverageMonth(foiaRequests):
 		sumTotal = 0
 		sumSuccesses = 0
 		sumfailures = 0
-		for year in np.arange(2009, 2019):
+		for year in np.arange(YEAR_START-1, YEAR_END+1):
 			if data['years'][year][month]['total'] != 0:
 				sumTotal = data['years'][year][month]['total']
 				sumSuccesses = data['years'][year][month]['successes']
@@ -493,8 +509,8 @@ def plotMultiBarGraph(sets):
 	return
 
 
-def figure():
-	fig = plt.figure(figsize=(15, 7))
+def figure(w=10, h=5):
+	fig = plt.figure(figsize=(w, h))
 	fig.subplots_adjust(bottom=0.2)
 	return fig
 
