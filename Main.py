@@ -20,14 +20,26 @@ def main():
 	sorted(foiaRequests, key=operator.itemgetter('date_submitted'), reverse=False)
 	print('Post Filter:')
 	printTotals(jurisdictions, agencies, foiaRequests)
+	'''
 	printRequestStatuses(foiaRequests)
 	plotRequestStatuses(foiaRequests)
 	plotSuccessesByYear(foiaRequests)
+	'''
 	plotSuccessesByMonth(foiaRequests)
 	plotSuccessesByAverageMonth(foiaRequests)
+	plotSuccessesByDay(foiaRequests)
 	plt.show()
+	printDocumentTitlesOnDay(foiaRequests, dt.datetime(year=2013, month=3, day=19))
 	return
 
+
+def printDocumentTitlesOnDay(foiaRequests, dateTime):
+	print('')
+	for foia in foiaRequests:
+		foiaDate = getDate(foia['date_submitted'])
+		if dateTime.year == foiaDate.year and dateTime.month == foiaDate.month and dateTime.day == foiaDate.day:
+			print('{:16}'.format(foia['status']) + foia['title'])
+	return
 
 def filterData(jurisdictions, agencies, foiaRequests):
 	foiaRequests[:] = filterfalse(shouldFilterFoiaRequest, foiaRequests)
@@ -89,11 +101,108 @@ def plotRequestStatuses(foiaRequests):
 	return
 
 
-def plotSuccessesByYear(foiaRequests):
+def plotSuccessesByDay(foiaRequests):
+	dates = {}
+	Xlabels = []
+	for year in np.arange(YEAR_START-1, YEAR_END+2):
+		for month in np.arange(1, 13):
+			if (month < 10):
+				keyMonth = str(year) + '-0' + str(month) + '-'
+			else:
+				keyMonth = str(year) + '-' + str(month) + '-'
+			for day in np.arange(1,32):
+				isValidDay = True
+				try:
+					dt.datetime(year=year, month=month, day=day)
+				except:
+					isValidDay = False
+				if isValidDay:
+					if (day < 10):
+						key = keyMonth + '0' + str(day)
+					else:
+						key = keyMonth + str(day)
+					Xlabels.append(key)
+					dates[key] = {}
+					dates[key]['total'] = 0
+					dates[key]['successes'] = 0
+					dates[key]['failures'] = 0
+	for foia in foiaRequests:
+		date = getDate(foia['date_submitted'])
+		if (date.month < 10):
+			key = str(date.year) + '-0' + str(date.month) + '-'
+		else:
+			key = str(date.year) + '-' + str(date.month) + '-'
+		if (date.day < 10):
+			key += '0' + str(date.day)
+		else:
+			key += str(date.day)
+		dates[key]['total'] += 1
+		if isFoiaRequestSuccessful(foia):
+			dates[key]['successes'] += 1
+		else:
+			dates[key]['failures'] += 1
+	Ytotal = []
+	Ysuccesses = []
+	Yfailures = []
+	YsuccessPercentage = []
+	for y in dates.values():
+		Ytotal.append(y['total'])
+		Ysuccesses.append(y['successes'])
+		Yfailures.append(y['failures'])
+		if y['total'] != 0:
+			YsuccessPercentage.append(y['successes'] / y['total'] * 100)
+		else:
+			YsuccessPercentage.append(0)
+	minIndex = None
+	maxIndex = None
+	x = 0
+	for date in Xlabels:
+		if Ytotal[x] != 0:
+			if minIndex == None and Ytotal[x] != 0:
+				minIndex = x
+			maxIndex = x
+		x += 1
+	x = 0
+	X = []
+	yFilteredTotal = []
+	yFilteredSuccessPercent = []
+	for date in Xlabels:
+		if x >= minIndex and x <= maxIndex and Ytotal[x] >= 5:
+			yFilteredTotal.append(Ytotal[x])
+			X.append(date)
+			yFilteredSuccessPercent.append(YsuccessPercentage[x])
+		x += 1
+	
 	fig = figure()
-	plt.title('FOIA Requests By Year')
-	plt.xlabel('Year')
-	plt.ylabel('Number of Requests')
+	plt.title('Histogram of FOIA Requests By Day')
+	n, bins, patches = plt.hist(yFilteredTotal, bins='auto', edgecolor='black', normed=True)
+	mu = np.mean(yFilteredTotal)
+	sigma = np.std(yFilteredTotal)
+	#x = np.linspace(bins[0], bins[len(bins)-1], 100)
+	x = np.linspace(0, bins[len(bins)-1], 100)
+	fit = stats.norm.pdf(x, mu, sigma)
+	plt.plot(x, fit, 'r--')
+	plt.savefig('figures/daily_histogram.png')
+		
+	fig = figure()
+	plt.title('Histogram of Percentages of Successful FOIA Requests By Day')
+	n, bins, patches = plt.hist(yFilteredSuccessPercent, bins='auto', edgecolor='black', normed=True)
+	mu = np.mean(yFilteredSuccessPercent)
+	sigma = np.std(yFilteredSuccessPercent)
+	x = np.linspace(0, 100, 100)
+	fit = stats.norm.pdf(x, mu, sigma)
+	plt.plot(x, fit, 'r--')
+	plt.savefig('figures/daily_histogram_successful_percentage.png')
+	
+	tZip = zip(X, yFilteredTotal)
+	print(sorted(tZip, key=operator.itemgetter(1)))
+	
+	normalityTests(yFilteredTotal, 'FOIA Requests By Day', 0.01)
+	normalityTests(yFilteredSuccessPercent, 'Percentages of Successful FOIA Requests By Day', 0.01)
+	return
+
+
+def plotSuccessesByYear(foiaRequests):
 	years = {}
 	for foia in foiaRequests:
 		date = getDate(foia['date_submitted'])
@@ -103,6 +212,11 @@ def plotSuccessesByYear(foiaRequests):
 		years[year] += 1
 	X = years.keys()
 	Y = years.values()
+	
+	fig = figure()
+	plt.title('FOIA Requests By Year')
+	plt.xlabel('Year')
+	plt.ylabel('Number of Requests')
 	plt.bar(X, Y)
 	plt.savefig('figures/yearly_total.png')
 	
