@@ -8,8 +8,9 @@ import RetrieveDataset as retrieve
 import scipy.stats as stats
 
 
-YEAR_START = 2013
-YEAR_END = 2017
+YEAR_START = 2015
+YEAR_END = 2020
+DISP_FULL_TESTS = False
 
 
 def main():
@@ -17,14 +18,14 @@ def main():
 	jurisdictions, agencies, foiaRequests = retrieve.loadData()
 	printTotals(jurisdictions, agencies, foiaRequests)
 	filterData(jurisdictions, agencies, foiaRequests)
-	sorted(foiaRequests, key=operator.itemgetter('date_submitted'), reverse=False)
+	sorted(foiaRequests, key=operator.itemgetter('datetime_submitted'), reverse=False)
 	print('Post Filter:')
 	printTotals(jurisdictions, agencies, foiaRequests)
-	'''
+	
 	printRequestStatuses(foiaRequests)
 	plotRequestStatuses(foiaRequests)
 	plotSuccessesByYear(foiaRequests)
-	'''
+	
 	plotSuccessesByMonth(foiaRequests)
 	plotSuccessesByAverageMonth(foiaRequests)
 	plotSuccessesByDay(foiaRequests)
@@ -33,27 +34,30 @@ def main():
 	return
 
 
-def printDocumentTitlesOnDay(foiaRequests, dateTime):
-	print('')
-	for foia in foiaRequests:
-		foiaDate = getDate(foia['date_submitted'])
-		if dateTime.year == foiaDate.year and dateTime.month == foiaDate.month and dateTime.day == foiaDate.day:
-			print('{:16}'.format(foia['status']) + foia['title'])
-	return
-
 def filterData(jurisdictions, agencies, foiaRequests):
 	foiaRequests[:] = filterfalse(shouldFilterFoiaRequest, foiaRequests)
 	return
 
 
 def shouldFilterFoiaRequest(foiaRequest):
-	if foiaRequest['date_submitted'] == None:
+	if foiaRequest['datetime_submitted'] == None:
 		return True
-	if getDate(foiaRequest['date_submitted']).year > YEAR_END:
+	if getDate(foiaRequest['datetime_submitted']).year > YEAR_END:
 		return True
-	if getDate(foiaRequest['date_submitted']).year < YEAR_START:
-		return True
+	if getDate(foiaRequest['datetime_submitted']).year < YEAR_START:
+		return True	
+	#if foiaRequest['status'] == 'processed' or foiaRequest['status'] == 'ack':
+		#return True
 	return False
+
+
+def printDocumentTitlesOnDay(foiaRequests, dateTime):
+	print('')
+	for foia in foiaRequests:
+		foiaDate = getDate(foia['datetime_submitted'])
+		if dateTime.year == foiaDate.year and dateTime.month == foiaDate.month and dateTime.day == foiaDate.day:
+			print('{:16}'.format(foia['status']) + foia['title'])
+	return
 
 
 def plotRequestStatuses(foiaRequests):
@@ -127,7 +131,7 @@ def plotSuccessesByDay(foiaRequests):
 					dates[key]['successes'] = 0
 					dates[key]['failures'] = 0
 	for foia in foiaRequests:
-		date = getDate(foia['date_submitted'])
+		date = getDate(foia['datetime_submitted'])
 		if (date.month < 10):
 			key = str(date.year) + '-0' + str(date.month) + '-'
 		else:
@@ -175,7 +179,7 @@ def plotSuccessesByDay(foiaRequests):
 	
 	fig = figure()
 	plt.title('Histogram of FOIA Requests By Day')
-	n, bins, patches = plt.hist(yFilteredTotal, bins='auto', edgecolor='black', normed=True)
+	n, bins, patches = plt.hist(yFilteredTotal, bins='auto', edgecolor='black', density=True)
 	mu = np.mean(yFilteredTotal)
 	sigma = np.std(yFilteredTotal)
 	#x = np.linspace(bins[0], bins[len(bins)-1], 100)
@@ -186,7 +190,7 @@ def plotSuccessesByDay(foiaRequests):
 		
 	fig = figure()
 	plt.title('Histogram of Percentages of Successful FOIA Requests By Day')
-	n, bins, patches = plt.hist(yFilteredSuccessPercent, bins='auto', edgecolor='black', normed=True)
+	n, bins, patches = plt.hist(yFilteredSuccessPercent, bins='auto', edgecolor='black', density=True)
 	mu = np.mean(yFilteredSuccessPercent)
 	sigma = np.std(yFilteredSuccessPercent)
 	x = np.linspace(0, 100, 100)
@@ -195,7 +199,7 @@ def plotSuccessesByDay(foiaRequests):
 	plt.savefig('figures/daily_histogram_successful_percentage.png')
 	
 	tZip = zip(X, yFilteredTotal)
-	print(sorted(tZip, key=operator.itemgetter(1)))
+	#print(sorted(tZip, key=operator.itemgetter(1)))
 	
 	normalityTests(yFilteredTotal, 'FOIA Requests By Day', 0.01)
 	normalityTests(yFilteredSuccessPercent, 'Percentages of Successful FOIA Requests By Day', 0.01)
@@ -205,7 +209,7 @@ def plotSuccessesByDay(foiaRequests):
 def plotSuccessesByYear(foiaRequests):
 	years = {}
 	for foia in foiaRequests:
-		date = getDate(foia['date_submitted'])
+		date = getDate(foia['datetime_submitted'])
 		year = date.year
 		if year not in years.keys():
 			years[year] = 0
@@ -232,7 +236,7 @@ def plotSuccessesByYear(foiaRequests):
 	for year in years:
 		successYears[year] = 0
 	for foia in foiaRequestsSuccess:
-		date = getDate(foia['date_submitted'])
+		date = getDate(foia['datetime_submitted'])
 		year = date.year
 		if year not in successYears.keys():
 			successYears[year] = 0
@@ -242,7 +246,7 @@ def plotSuccessesByYear(foiaRequests):
 		failedYears[year] = 0
 	foiaRequestsFailed =  filterfalse(isFoiaRequestSuccessful, foiaRequests)
 	for foia in foiaRequestsFailed:
-		date = getDate(foia['date_submitted'])
+		date = getDate(foia['datetime_submitted'])
 		year = date.year
 		if year not in failedYears.keys():
 			failedYears[year] = 0
@@ -287,7 +291,7 @@ def plotSuccessesByMonth(foiaRequests):
 			dates[key]['successes'] = 0
 			dates[key]['failures'] = 0
 	for foia in foiaRequests:
-		date = getDate(foia['date_submitted'])
+		date = getDate(foia['datetime_submitted'])
 		year = date.year
 		if (date.month < 10):
 			key = str(date.year) + '-0' + str(date.month)
@@ -371,7 +375,7 @@ def plotSuccessesByMonth(foiaRequests):
 		
 	fig = figure()
 	plt.title('Histogram of FOIA Requests By Year and Month')
-	n, bins, patches = plt.hist(yFilteredTotal, bins='auto', edgecolor='black', normed=True)
+	n, bins, patches = plt.hist(yFilteredTotal, bins='auto', edgecolor='black', density=True)
 	mu = np.mean(yFilteredTotal)
 	sigma = np.std(yFilteredTotal)
 	#x = np.linspace(bins[0], bins[len(bins)-1], 100)
@@ -382,7 +386,7 @@ def plotSuccessesByMonth(foiaRequests):
 		
 	fig = figure()
 	plt.title('Histogram of Percentages of Successful FOIA Requests By Year and Month')
-	n, bins, patches = plt.hist(yFilteredSuccessPercent, bins='auto', edgecolor='black', normed=True)
+	n, bins, patches = plt.hist(yFilteredSuccessPercent, bins='auto', edgecolor='black', density=True)
 	mu = np.mean(yFilteredSuccessPercent)
 	sigma = np.std(yFilteredSuccessPercent)
 	x = np.linspace(0, 100, 100)
@@ -398,39 +402,46 @@ def plotSuccessesByMonth(foiaRequests):
 def normalityTests(data, title, significanceLevel=0.05):
 	# Shapiro-Wilk test for normality
 	W, pValue = stats.shapiro(data)
-	print('Shapiro-Wilk Test For Normality')
-	print('H0: The distribution of ' + title + ' is normal.')
-	print('Ha: The distribution of ' + title + ' is not normal.')
-	print('TS: W=' + '{:.4f}'.format(W))
+	if DISP_FULL_TESTS:
+		print('Shapiro-Wilk Test For Normality')
+		print('H0: The distribution of ' + title + ' is normal.')
+		print('Ha: The distribution of ' + title + ' is not normal.')
+		print('TS: W=' + '{:.4f}'.format(W))
 	if pValue <= significanceLevel:
-		print('P-Value: P=' + '{:.4f}'.format(pValue) + ' < ' + '{:.4f}'.format(significanceLevel))
-		print('Reject Ho. At the alpha={:.2f}'.format(significanceLevel) + ' significance level, there is sufficiant evidence to indicate that the distribution of ' + title + ' is not normal.')
-		print('')
+		if DISP_FULL_TESTS:
+			print('P-Value: P=' + '{:.4f}'.format(pValue) + ' < ' + '{:.4f}'.format(significanceLevel))
+			print('Reject Ho. At the alpha={:.2f}'.format(significanceLevel) + ' significance level, there is sufficiant evidence to indicate that the distribution of ' + title + ' is not normal.')
+			print('')
 		print('The distribution of ' + title + ' IS NOT normal.')
 	else:
-		print('P-Value: P=' + '{:.4f}'.format(pValue) + ' !< ' + '{:.4f}'.format(significanceLevel))
-		print('Do not reject Ho. At the alpha={:.2f}'.format(significanceLevel) + ' significance level, there is insufficiant evidence to indicate that the distribution of ' + title + ' is not normal.')
-		print('')
+		if DISP_FULL_TESTS:
+			print('P-Value: P=' + '{:.4f}'.format(pValue) + ' !< ' + '{:.4f}'.format(significanceLevel))
+			print('Do not reject Ho. At the alpha={:.2f}'.format(significanceLevel) + ' significance level, there is insufficiant evidence to indicate that the distribution of ' + title + ' is not normal.')
+			print('')
 		print('The distribution of ' + title + ' IS normal.')
 	print('')
 	print('')
 	
 	# Anderson-Darling test for normality
 	A2, critialValues, significanceLevels = stats.anderson(data, dist='norm')
-	print('Anderson-Darling Test For Normality')
-	print('H0: The distribution of ' + title + ' is normal.')
-	print('Ha: The distribution of ' + title + ' is not normal.')
+	
+	if DISP_FULL_TESTS:
+		print('Anderson-Darling Test For Normality')
+		print('H0: The distribution of ' + title + ' is normal.')
+		print('Ha: The distribution of ' + title + ' is not normal.')
 	critialValues = dict(zip(significanceLevels, critialValues))
 	criticalValue = critialValues[significanceLevel*100]
 	if A2 < criticalValue:
-		print('TS: A2=' + '{:.4f}'.format(A2) + ' < ' + '{:.4f}'.format(criticalValue))
-		print('Do not reject Ho. At the alpha={:.2f}'.format(significanceLevel) + ' significance level, there is insufficiant evidence to indicate that the distribution of ' + title + ' is not normal.')
-		print('')
+		if DISP_FULL_TESTS:
+			print('TS: A2=' + '{:.4f}'.format(A2) + ' < ' + '{:.4f}'.format(criticalValue))
+			print('Do not reject Ho. At the alpha={:.2f}'.format(significanceLevel) + ' significance level, there is insufficiant evidence to indicate that the distribution of ' + title + ' is not normal.')
+			print('')
 		print('The distribution of ' + title + ' IS normal.')
 	else:
-		print('TS: A2=' + '{:.4f}'.format(A2) + ' !< ' + '{:.4f}'.format(criticalValue))
-		print('Reject Ho. At the alpha={:.2f}'.format(significanceLevel) + ' significance level, there is sufficiant evidence to indicate that the distribution of ' + title + ' is not normal.')
-		print('')
+		if DISP_FULL_TESTS:
+			print('TS: A2=' + '{:.4f}'.format(A2) + ' !< ' + '{:.4f}'.format(criticalValue))
+			print('Reject Ho. At the alpha={:.2f}'.format(significanceLevel) + ' significance level, there is sufficiant evidence to indicate that the distribution of ' + title + ' is not normal.')
+			print('')
 		print('The distribution of ' + title + ' IS NOT normal.')
 	print('')
 	print('')
@@ -463,7 +474,7 @@ def plotSuccessesByAverageMonth(foiaRequests):
 			data['years'][year][month]['successes'] = 0
 			data['years'][year][month]['failures'] = 0
 	for foia in foiaRequests:
-		date = getDate(foia['date_submitted'])
+		date = getDate(foia['datetime_submitted'])
 		year = date.year
 		month = date.month-1
 		data['unnormalized'][month]['total'] += 1
@@ -592,7 +603,10 @@ def printTotals(jurisdictions, agencies, foiaRequests):
 
 
 def getDate(dateStr):
-	return dt.datetime.strptime(dateStr, "%Y-%m-%d").date()
+	try:
+		return dt.datetime.strptime(dateStr, "%Y-%m-%dT%H:%M:%S.%f").date()
+	except:
+		return dt.datetime.strptime(dateStr, "%Y-%m-%dT%H:%M:%S").date()
 
 
 def isFoiaRequestSuccessful(foiaRequest):

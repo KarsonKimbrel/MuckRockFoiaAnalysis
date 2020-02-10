@@ -21,8 +21,13 @@ def retrieveData(url):
 	t = False
 	while t or True:
 		print(url)
-		resp = requests.get(url)
-		data = resp.json()
+		while True:
+			try:
+				resp = requests.get(url)
+				data = resp.json()
+				break
+			except:
+				pass
 		url = data['next']
 		if url == None:
 			break
@@ -37,11 +42,14 @@ def loadData():
 	agencies = loadDataByName('./agencies.json')
 	foiaRequests = loadDataByName('./foiaRequests.json')
 	return juristictions, agencies, foiaRequests
+
+
 def loadDataByName(fileName):
 	file = open(fileName, 'r', encoding='utf8')
 	data = json.load(file)
 	file.close()
 	return data
+
 
 def saveData(data, fileName):
 	file = open(fileName, 'w')
