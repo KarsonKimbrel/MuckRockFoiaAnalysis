@@ -8,8 +8,8 @@ import RetrieveDataset as retrieve
 import scipy.stats as stats
 
 
-YEAR_START = 2015
-YEAR_END = 2020
+YEAR_START = 2013
+YEAR_END = 2019
 DISP_FULL_TESTS = False
 
 
@@ -46,6 +46,8 @@ def shouldFilterFoiaRequest(foiaRequest):
 		return True
 	if getDate(foiaRequest['datetime_submitted']).year < YEAR_START:
 		return True	
+	if 'Library Complaint and Censorship Records' in foiaRequest['title']:
+		return True
 	#if foiaRequest['status'] == 'processed' or foiaRequest['status'] == 'ack':
 		#return True
 	return False

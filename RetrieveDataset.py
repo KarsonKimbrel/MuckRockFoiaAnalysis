@@ -5,35 +5,44 @@ import sys
 
 def downloadDataset():
 	print('Updating dataset...')
-	saveData(updateJuristictions(), './juristictions.json')
-	saveData(updateAgencies(), './agencies.json')
+	#saveData(updateJuristictions(), './juristictions.json')
+	#saveData(updateAgencies(), './agencies.json')
 	saveData(updateFoiaRequests(), './foiaRequests.json')
 	print('Dataset saved.')
 	return
 def updateJuristictions():
-	return retrieveData('https://www.muckrock.com/api_v1/jurisdiction/')
+	return retrieveData('https://www.muckrock.com/api_v1/jurisdiction/', None)
 def updateAgencies():
-	return retrieveData('https://www.muckrock.com/api_v1/agency/')
+	return retrieveData('https://www.muckrock.com/api_v1/agency/', None)
 def updateFoiaRequests():
-	return retrieveData('https://www.muckrock.com/api_v1/foia/')
-def retrieveData(url):
+	return retrieveData('https://www.muckrock.com/api_v1/foia/', None)
+def retrieveData(baseUrl, params):
 	responses = []
+	page = 1
 	t = False
-	while t or True:
-		print(url)
+	while True:
+		retryNum = 0
 		while True:
+			url = baseUrl + '?page=' + str(page)
+			if params != None:
+				url = url + '&' + params
 			try:
 				resp = requests.get(url)
 				data = resp.json()
+				page = page + 1
+				print(url)
 				break
 			except:
 				pass
+			retryNum = retryNum + 1
+			if retryNum == 3:
+				retryNum = 0
+				page = page + 1
+		for result in data['results']:
+			responses.append(result)
 		url = data['next']
 		if url == None:
 			break
-		for result in data['results']:
-			responses.append(result)
-		t = False
 	return responses
 
 
