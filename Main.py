@@ -13,6 +13,9 @@ YEAR_END = 2019
 DISP_FULL_TESTS = False
 
 
+MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+
 def main():
 	#retrieve.downloadDataset()
 	jurisdictions, agencies, foiaRequests = retrieve.loadData()
@@ -51,15 +54,6 @@ def shouldFilterFoiaRequest(foiaRequest):
 	#if foiaRequest['status'] == 'processed' or foiaRequest['status'] == 'ack':
 		#return True
 	return False
-
-
-def printDocumentTitlesOnDay(foiaRequests, dateTime):
-	print('')
-	for foia in foiaRequests:
-		foiaDate = getDate(foia['datetime_submitted'])
-		if dateTime.year == foiaDate.year and dateTime.month == foiaDate.month and dateTime.day == foiaDate.day:
-			print('{:16}'.format(foia['status']) + foia['title'])
-	return
 
 
 def plotRequestStatuses(foiaRequests):
@@ -451,7 +445,6 @@ def normalityTests(data, title, significanceLevel=0.05):
 	
 
 def plotSuccessesByAverageMonth(foiaRequests):
-	months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 	X = np.arange(0, 12)
 	data = {}
 	data['unnormalized'] = {}
@@ -525,7 +518,7 @@ def plotSuccessesByAverageMonth(foiaRequests):
 	plt.xlabel('Month')
 	plt.ylabel('Number of Requests')
 	plt.bar(X, unnormalizedTotal)
-	plt.xticks(X, months, rotation='horizontal')
+	plt.xticks(X, MONTHS, rotation='horizontal')
 	plt.savefig('figures/month_unnormalized_total.png')
 	
 	fig = figure()
@@ -536,7 +529,7 @@ def plotSuccessesByAverageMonth(foiaRequests):
 		(X, unnormalizedSuccesses, 'Successful', 'green'),
 		(X, unnormalizedFailures, 'Unsuccessful', 'red')]
 	plotMultiBarGraph(sets)
-	plt.xticks(X, months, rotation='horizontal')
+	plt.xticks(X, MONTHS, rotation='horizontal')
 	plt.savefig('figures/month_unnormalized_breakdown.png')
 	
 	fig = figure()
@@ -544,7 +537,7 @@ def plotSuccessesByAverageMonth(foiaRequests):
 	plt.xlabel('Month')
 	plt.ylabel('Percentage of Successful Requests')
 	plt.bar(X, unnormalizedPercentageSuccess)
-	plt.xticks(X, months, rotation='horizontal')
+	plt.xticks(X, MONTHS, rotation='horizontal')
 	plt.savefig('figures/month_unnormalized_percent_successful.png')
 	
 	fig = figure()
@@ -552,7 +545,7 @@ def plotSuccessesByAverageMonth(foiaRequests):
 	plt.xlabel('Month')
 	plt.ylabel('Average Number of Requests')
 	plt.bar(X, normalizedTotal)
-	plt.xticks(X, months, rotation='horizontal')
+	plt.xticks(X, MONTHS, rotation='horizontal')
 	plt.savefig('figures/month_normalized_total.png')
 	
 	fig = figure()
@@ -563,7 +556,7 @@ def plotSuccessesByAverageMonth(foiaRequests):
 		(X, normalizedSuccesses, 'Successful', 'green'),
 		(X, normalizedFailures, 'Unsuccessful', 'red')]
 	plotMultiBarGraph(sets)
-	plt.xticks(X, months, rotation='horizontal')
+	plt.xticks(X, MONTHS, rotation='horizontal')
 	plt.savefig('figures/month_normalized_breakdown.png')
 	
 	fig = figure()
@@ -571,7 +564,7 @@ def plotSuccessesByAverageMonth(foiaRequests):
 	plt.xlabel('Month')
 	plt.ylabel('Average Percentage of Successful Requests')
 	plt.bar(X, normalizedPercentageSuccess)
-	plt.xticks(X, months, rotation='horizontal')
+	plt.xticks(X, MONTHS, rotation='horizontal')
 	plt.savefig('figures/month_normalized_percent_successful.png')
 	
 	return
@@ -604,6 +597,15 @@ def printTotals(jurisdictions, agencies, foiaRequests):
 	return
 
 
+def printDocumentTitlesOnDay(foiaRequests, dateTime):
+	print('')
+	for foia in foiaRequests:
+		foiaDate = getDate(foia['datetime_submitted'])
+		if dateTime.year == foiaDate.year and dateTime.month == foiaDate.month and dateTime.day == foiaDate.day:
+			print('{:16}'.format(foia['status']) + foia['title'])
+	return
+
+
 def getDate(dateStr):
 	try:
 		return dt.datetime.strptime(dateStr, "%Y-%m-%dT%H:%M:%S.%f").date()
@@ -612,10 +614,7 @@ def getDate(dateStr):
 
 
 def isFoiaRequestSuccessful(foiaRequest):
-	status = foiaRequest['status']
-	if status == 'done':
-		return True
-	return False
+	return foiaRequest['status'] == 'done'
 
 
 def isFoiaRequestFailed(foiaRequest):
