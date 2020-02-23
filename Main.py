@@ -4,12 +4,14 @@ import numpy as np
 import matplotlib.mlab as mlab
 import matplotlib.pyplot as plt
 import operator
+import plotly.express as px
+import plotly.graph_objs as go
 import RetrieveDataset as retrieve
 import scipy.stats as stats
 
 
 YEAR_START = 2013
-YEAR_END = 2019
+YEAR_END = 2018
 DISP_FULL_TESTS = False
 
 
@@ -27,11 +29,11 @@ def main():
 	
 	printRequestStatuses(foiaRequests)
 	plotRequestStatuses(foiaRequests)
-	plotSuccessesByYear(foiaRequests)
+	#plotSuccessesByYear(foiaRequests)
 	
-	plotSuccessesByMonth(foiaRequests)
-	plotSuccessesByAverageMonth(foiaRequests)
-	plotSuccessesByDay(foiaRequests)
+	#plotSuccessesByMonth(foiaRequests)
+	#plotSuccessesByAverageMonth(foiaRequests)
+	#plotSuccessesByDay(foiaRequests)
 	plt.show()
 	printDocumentTitlesOnDay(foiaRequests, dt.datetime(year=2013, month=3, day=19))
 	return
@@ -51,7 +53,9 @@ def shouldFilterFoiaRequest(foiaRequest):
 		return True	
 	if 'Library Complaint and Censorship Records' in foiaRequest['title']:
 		return True
-	#if foiaRequest['status'] == 'processed' or foiaRequest['status'] == 'ack':
+	if foiaRequest['status'] == 'processed' or foiaRequest['status'] == 'ack':
+		return True
+	#if foiaRequest['agency'] != 10:
 		#return True
 	return False
 
@@ -98,6 +102,15 @@ def plotRequestStatuses(foiaRequests):
 	plt.axis('equal')
 	plt.legend(labels=legend)
 	plt.savefig('figures/statuses_simple.png')
+	'''
+	df = list(map(lambda k, v: {'status': k, 'count': v}, statusCount.keys(), statusCount.values()))
+	fig = px.pie(df, names='status', values='count')
+	fig.show()
+	
+	df = list(map(lambda k, v: {'status': k, 'count': v}, legend, [totalSuccessful, totalUnsuccessful]))
+	fig = px.pie(df, names='status', values='count')
+	fig.show()
+	'''
 	return
 
 
