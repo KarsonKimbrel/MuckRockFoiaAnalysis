@@ -1,5 +1,7 @@
+from collections import defaultdict
 import datetime as dt
 from itertools import filterfalse
+from itertools import groupby
 import numpy as np
 import matplotlib.mlab as mlab
 import matplotlib.pyplot as plt
@@ -21,13 +23,18 @@ MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 
 def main():
 	#retrieve.downloadDataset()
 	jurisdictions, agencies, foiaRequests = retrieve.loadData()
+	print()
 	printTotals(jurisdictions, agencies, foiaRequests)
 	filterData(jurisdictions, agencies, foiaRequests)
+	print('Sorting data...')
 	sorted(foiaRequests, key=operator.itemgetter('datetime_submitted'), reverse=False)
+	annotateData(jurisdictions, agencies, foiaRequests)
+	print()
 	print('Post Filter:')
 	printTotals(jurisdictions, agencies, foiaRequests)
 	
 	printRequestStatuses(foiaRequests)
+	#print(foiaRequests[0])
 	plotRequestStatuses(foiaRequests)
 	#plotSuccessesByYear(foiaRequests)
 	
@@ -35,12 +42,28 @@ def main():
 	#plotSuccessesByAverageMonth(foiaRequests)
 	#plotSuccessesByDay(foiaRequests)
 	plt.show()
-	printDocumentTitlesOnDay(foiaRequests, dt.datetime(year=2013, month=3, day=19))
+	#printDocumentTitlesOnDay(foiaRequests, dt.datetime(year=2013, month=3, day=19))
+	
 	return
 
 
 def filterData(jurisdictions, agencies, foiaRequests):
+	print('Filtering data...')
 	foiaRequests[:] = filterfalse(shouldFilterFoiaRequest, foiaRequests)
+	return
+
+
+def annotateData(jurisdictions, agencies, foiaRequests):
+	print('Annotating data...')
+	for request in foiaRequests:
+		date = getDate(request['datetime_submitted'])
+		request['date_day'] = date.day
+		request['date_month'] = date.month
+		request['date_year'] = date.year
+		request['date_year_month'] = date.strftime('%Y-%m')
+		request['date_year_month_day'] = date.strftime('%Y-%m-%d')
+		request['num_communications'] = len(request['communications'])
+		request['is_successful'] = request['status'] == 'done' or request['status'] == 'partial'
 	return
 
 
@@ -61,31 +84,20 @@ def shouldFilterFoiaRequest(foiaRequest):
 
 
 def plotRequestStatuses(foiaRequests):
-	statuses = []
-	for foia in foiaRequests:
-		statuses.append(foia['status'])
-		foia['taggedstatus'] = 'test'
-	statuses = np.unique(statuses)
-	statusCount = {}
-	total = 0
-	totalSuccessful = 0
-	totalUnsuccessful = 0
-	for status in statuses:
-		statusCount[status] = 0
-	for foia in foiaRequests:
-		statusCount[foia['status']] += 1
-		total += 1
-		if isFoiaRequestSuccessful(foia):
-			totalSuccessful += 1
+	requests = sorted(foiaRequests, key=lambda x: x['status'])
+	totalRequests = len(requests)
+	statuses = defaultdict(int)
+	simpleStatuses = defaultdict(int)
+	groups = groupby(requests, lambda x: x['status'])
+	for status, requests in groups:
+		numRequests = len(list(requests))
+		if numRequests / float(totalRequests) >= 0.04:
+			statuses[status] = numRequests
 		else:
-			totalUnsuccessful += 1
-	other = 0
-	for status in statuses:
-		if ((statusCount[status] / total) * 100) < 4.0:
-			other += statusCount[status]
-			del statusCount[status]
-	statusCount['other'] = other
-	statusCount = dict(sorted(statusCount.items(), key=operator.itemgetter(1)))
+			statuses['other'] += numRequests
+		simpleStatuses[isStatusSuccessful(status)] += numRequests
+			
+	statusCount = dict(sorted(statuses.items(), key=operator.itemgetter(1)))
 	
 	fig = figure(7)
 	plt.title('Breakdown of FOIA Request Statuses')
@@ -98,10 +110,11 @@ def plotRequestStatuses(foiaRequests):
 	colors = ['green', 'red']
 	fig = figure(7)
 	plt.title('Breakdown of FOIA Request Statuses')
-	plt.pie([totalSuccessful, totalUnsuccessful], colors=colors, autopct='%1.1f%%', counterclock=True)
+	plt.pie([simpleStatuses[True], simpleStatuses[False]], colors=colors, autopct='%1.1f%%', counterclock=True)
 	plt.axis('equal')
 	plt.legend(labels=legend)
 	plt.savefig('figures/statuses_simple.png')
+	
 	'''
 	df = list(map(lambda k, v: {'status': k, 'count': v}, statusCount.keys(), statusCount.values()))
 	fig = px.pie(df, names='status', values='count')
@@ -626,8 +639,12 @@ def getDate(dateStr):
 		return dt.datetime.strptime(dateStr, "%Y-%m-%dT%H:%M:%S").date()
 
 
+def isStatusSuccessful(status):
+	return status == 'done'
+
+
 def isFoiaRequestSuccessful(foiaRequest):
-	return foiaRequest['status'] == 'done'
+	return isStatusSuccessful(foiaRequest['status'])
 
 
 def isFoiaRequestFailed(foiaRequest):

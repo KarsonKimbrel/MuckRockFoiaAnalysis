@@ -47,6 +47,7 @@ def retrieveData(baseUrl, params):
 
 
 def loadData():
+	print('Loading data...')
 	juristictions = loadDataByName('./juristictions.json')
 	agencies = loadDataByName('./agencies.json')
 	foiaRequests = loadDataByName('./foiaRequests.json')
