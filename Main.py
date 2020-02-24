@@ -19,9 +19,6 @@ DATE_END = '2019-01-01'
 DISP_FULL_TESTS = False
 
 
-MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-
-
 def main():
 	#retrieve.downloadDataset()
 	jurisdictions, agencies, foiaRequests = retrieve.loadData()
@@ -29,20 +26,18 @@ def main():
 	printTotals(jurisdictions, agencies, foiaRequests)
 	filterData(jurisdictions, agencies, foiaRequests)
 	print('Sorting data...')
-	sorted(foiaRequests, key=operator.itemgetter('datetime_submitted'), reverse=False)
+	foiaRequests = sorted(foiaRequests, key=operator.itemgetter('datetime_submitted'), reverse=False)
 	annotateData(jurisdictions, agencies, foiaRequests)
 	print()
 	print('Post Filter:')
 	printTotals(jurisdictions, agencies, foiaRequests)
 	
 	printRequestStatuses(foiaRequests)
-	#print(foiaRequests[0])
-	#plotRequestStatuses(foiaRequests)
-	#plotSuccessesByYear(foiaRequests)
-	
-	#plotSuccessesByMonth(foiaRequests)
-	#plotSuccessesByAverageMonth(foiaRequests)
-	#plotSuccessesByDay(foiaRequests)
+	plotRequestStatuses(foiaRequests)
+	plotSuccessesByDay(foiaRequests)
+	plotSuccessesByYearMonth(foiaRequests)
+	plotSuccessesByYear(foiaRequests)
+	plotSuccessesByMonth(foiaRequests)
 	plt.show()
 	#printDocumentTitlesOnDay(foiaRequests, dt.datetime(year=2013, month=3, day=19))
 	
@@ -110,7 +105,7 @@ def plotRequestStatuses(foiaRequests):
 	
 	legend = ['Successful', 'Unsuccessful']
 	colors = ['green', 'red']
-	fig = figure(7)
+	fig = figure()
 	plt.title('Breakdown of FOIA Request Statuses')
 	plt.pie([simpleStatuses[True], simpleStatuses[False]], colors=colors, autopct='%1.1f%%', counterclock=True)
 	plt.axis('equal')
@@ -129,344 +124,104 @@ def plotRequestStatuses(foiaRequests):
 	return
 
 
-def plotSuccessesByDay(foiaRequests):
-	dateRange = getDateRange()
-	dailyRequestsGrouped = groupby(foiaRequests, key=lambda x: x['date_year_month_day'])
-	dailyTotal = defaultdict(int)
-	dailySuccessful = defaultdict(int)
-	for date, items in dailyRequestsGrouped:
+def plotSuccessesByGrouping(foiaRequests, dateRange, groupingKey, groupingName, groupingFilePrefix, plotHistograms=True, plotBargraphs=True, doNormalityTests=True):
+	requestsGrouped = groupby(foiaRequests, key=lambda x: x[groupingKey])
+	rangeTotal = defaultdict(int)
+	rangeSuccesses = defaultdict(int)
+	rangeFailures = defaultdict(int)
+	rangeSuccessPercent = defaultdict(float)
+	for dateYear, items in requestsGrouped:
 		requests = list(items)
-		dailyTotal[date] += len(requests)
+		numRequests = len(requests)
+		rangeTotal[dateYear] += numRequests
 		for request in requests:
 			if request['is_successful']:
-				dailySuccessful[date] += 1
-	dailySuccessfulPercent = defaultdict(int)
-	for date in dateRange:
-		if dailyTotal[date] != 0:
-			dailySuccessfulPercent[date] = float(dailySuccessful[date]) / float(dailyTotal[date]) * 100
-	
-	fig = figure()
-	plt.title('Histogram of FOIA Requests By Day')
-	yFilteredTotal = list(dailyTotal.values())
-	n, bins, patches = plt.hist(yFilteredTotal, bins='auto', edgecolor='black', density=True)
-	mu = np.mean(yFilteredTotal)
-	sigma = np.std(yFilteredTotal)
-	x = np.linspace(0, bins[len(bins)-1], 100)
-	fit = stats.norm.pdf(x, mu, sigma)
-	plt.plot(x, fit, 'r--')
-	plt.savefig('figures/daily_histogram.png')
-	
-	fig = figure()
-	plt.title('Histogram of Percentages of Successful FOIA Requests By Day')
-	yFilteredSuccessPercent = list(dailySuccessfulPercent.values())
-	n, bins, patches = plt.hist(yFilteredSuccessPercent, bins='auto', edgecolor='black', density=True)
-	mu = np.mean(yFilteredSuccessPercent)
-	sigma = np.std(yFilteredSuccessPercent)
-	x = np.linspace(0, 100, 100)
-	fit = stats.norm.pdf(x, mu, sigma)
-	plt.plot(x, fit, 'r--')
-	plt.savefig('figures/daily_histogram_successful_percentage.png')
-	
-	normalityTests(yFilteredTotal, 'FOIA Requests By Day', 0.01)
-	normalityTests(yFilteredSuccessPercent, 'Percentages of Successful FOIA Requests By Day', 0.01)
-	
-	return
-
-'''
-def plotSuccessesByDayOld(foiaRequests):
-	dates = {}
-	Xlabels = []
-	for year in np.arange(YEAR_START-1, YEAR_END+2):
-		for month in np.arange(1, 13):
-			if (month < 10):
-				keyMonth = str(year) + '-0' + str(month) + '-'
+				rangeSuccesses[dateYear] += 1
 			else:
-				keyMonth = str(year) + '-' + str(month) + '-'
-			for day in np.arange(1,32):
-				isValidDay = True
-				try:
-					dt.datetime(year=year, month=month, day=day)
-				except:
-					isValidDay = False
-				if isValidDay:
-					if (day < 10):
-						key = keyMonth + '0' + str(day)
-					else:
-						key = keyMonth + str(day)
-					Xlabels.append(key)
-					dates[key] = {}
-					dates[key]['total'] = 0
-					dates[key]['successes'] = 0
-					dates[key]['failures'] = 0
-	for foia in foiaRequests:
-		date = getDate(foia['datetime_submitted'])
-		if (date.month < 10):
-			key = str(date.year) + '-0' + str(date.month) + '-'
-		else:
-			key = str(date.year) + '-' + str(date.month) + '-'
-		if (date.day < 10):
-			key += '0' + str(date.day)
-		else:
-			key += str(date.day)
-		dates[key]['total'] += 1
-		if isFoiaRequestSuccessful(foia):
-			dates[key]['successes'] += 1
-		else:
-			dates[key]['failures'] += 1
-	Ytotal = []
-	Ysuccesses = []
-	Yfailures = []
-	YsuccessPercentage = []
-	for y in dates.values():
-		Ytotal.append(y['total'])
-		Ysuccesses.append(y['successes'])
-		Yfailures.append(y['failures'])
-		if y['total'] != 0:
-			YsuccessPercentage.append(y['successes'] / y['total'] * 100)
-		else:
-			YsuccessPercentage.append(0)
-	minIndex = None
-	maxIndex = None
-	x = 0
-	for date in Xlabels:
-		if Ytotal[x] != 0:
-			if minIndex == None and Ytotal[x] != 0:
-				minIndex = x
-			maxIndex = x
-		x += 1
-	x = 0
-	X = []
-	yFilteredTotal = []
-	yFilteredSuccessPercent = []
-	for date in Xlabels:
-		if x >= minIndex and x <= maxIndex and Ytotal[x] >= 5:
-			yFilteredTotal.append(Ytotal[x])
-			X.append(date)
-			yFilteredSuccessPercent.append(YsuccessPercentage[x])
-		x += 1
+				rangeFailures[dateYear] += 1
+		rangeSuccessPercent[dateYear] = (float(rangeSuccesses[dateYear]) / float(numRequests)) * 100
 	
-	fig = figure()
-	plt.title('Histogram of FOIA Requests By Day')
-	n, bins, patches = plt.hist(yFilteredTotal, bins='auto', edgecolor='black', density=True)
-	mu = np.mean(yFilteredTotal)
-	sigma = np.std(yFilteredTotal)
-	#x = np.linspace(bins[0], bins[len(bins)-1], 100)
-	x = np.linspace(0, bins[len(bins)-1], 100)
-	fit = stats.norm.pdf(x, mu, sigma)
-	plt.plot(x, fit, 'r--')
-	plt.savefig('figures/daily_histogram.png')
+	if plotBargraphs:
+		dateRangeEnum = list(zip(*enumerate(dateRange)))
 		
-	fig = figure()
-	plt.title('Histogram of Percentages of Successful FOIA Requests By Day')
-	n, bins, patches = plt.hist(yFilteredSuccessPercent, bins='auto', edgecolor='black', density=True)
-	mu = np.mean(yFilteredSuccessPercent)
-	sigma = np.std(yFilteredSuccessPercent)
-	x = np.linspace(0, 100, 100)
-	fit = stats.norm.pdf(x, mu, sigma)
-	plt.plot(x, fit, 'r--')
-	plt.savefig('figures/daily_histogram_successful_percentage.png')
+		fig = figure()
+		plt.title('FOIA Requests By ' + groupingName)
+		plt.xlabel(groupingName)
+		plt.ylabel('Number of Requests')
+		plt.bar(dateRangeEnum[1], rangeTotal.values())
+		if len(dateRange) > 12:
+			plt.xticks(dateRangeEnum[0], dateRangeEnum[1], rotation='vertical')
+		plt.savefig('figures/' + groupingFilePrefix + '/total.png')
+		
+		fig = figure()
+		plt.title('FOIA Requests By ' + groupingName)
+		plt.xlabel(groupingName)
+		plt.ylabel('Number of Requests')
+		sets = [
+			(dateRangeEnum[1], [rangeSuccesses[date] for date in dateRange], 'Successful', 'green'),
+			(dateRangeEnum[1], [ rangeFailures[date] for date in dateRange], 'Unsuccessful', 'red')]
+		plotMultiBarGraph(sets)
+		if len(dateRange) > 12:
+			plt.xticks(dateRangeEnum[0], dateRangeEnum[1], rotation='vertical')
+		plt.legend()
+		plt.savefig('figures/' + groupingFilePrefix + '/total_breakdown.png')
+		
+		fig = figure()
+		plt.title('Percentage of Successful FOIA Requests By ' + groupingName)
+		plt.xlabel(groupingName)
+		plt.ylabel('Percent of Successful Requests')
+		plt.bar(dateRangeEnum[1], [rangeSuccessPercent[date] for date in dateRange])
+		if len(dateRange) > 12:
+			plt.xticks(dateRangeEnum[0], dateRangeEnum[1], rotation='vertical')
+		plt.savefig('figures/' + groupingFilePrefix + '/percent_successful.png')
 	
-	tZip = zip(X, yFilteredTotal)
-	#print(sorted(tZip, key=operator.itemgetter(1)))
+	if plotHistograms:
+		fig = figure()
+		plt.title('Histogram of FOIA Requests By ' + groupingName)
+		yFilteredTotal = list(rangeTotal.values())
+		n, bins, patches = plt.hist(yFilteredTotal, bins='auto', edgecolor='black', density=True)
+		mu = np.mean(yFilteredTotal)
+		sigma = np.std(yFilteredTotal)
+		x = np.linspace(0, bins[len(bins)-1], 100)
+		fit = stats.norm.pdf(x, mu, sigma)
+		plt.plot(x, fit, 'r--')
+		plt.savefig('figures/' + groupingFilePrefix + '/histogram.png')
+		
+		fig = figure()
+		plt.title('Histogram of Percentages of Successful FOIA Requests By ' + groupingName)
+		yFilteredSuccessPercent = list(rangeSuccessPercent.values())
+		n, bins, patches = plt.hist(yFilteredSuccessPercent, bins='auto', edgecolor='black', density=True)
+		mu = np.mean(yFilteredSuccessPercent)
+		sigma = np.std(yFilteredSuccessPercent)
+		x = np.linspace(0, 100, 100)
+		fit = stats.norm.pdf(x, mu, sigma)
+		plt.plot(x, fit, 'r--')
+		plt.savefig('figures/' + groupingFilePrefix + '/histogram_successful_percentage.png')
 	
-	normalityTests(yFilteredTotal, 'FOIA Requests By Day', 0.01)
-	normalityTests(yFilteredSuccessPercent, 'Percentages of Successful FOIA Requests By Day', 0.01)
+	if doNormalityTests:
+		normalityTests(yFilteredTotal, 'FOIA Requests By ' + groupingName, 0.01)
+		normalityTests(yFilteredSuccessPercent, 'Percentages of Successful FOIA Requests By ' + groupingName, 0.01)
+	
 	return
 
 
-def plotSuccessesByYear(foiaRequests):
-	years = {}
-	for foia in foiaRequests:
-		date = getDate(foia['datetime_submitted'])
-		year = date.year
-		if year not in years.keys():
-			years[year] = 0
-		years[year] += 1
-	X = years.keys()
-	Y = years.values()
-	
-	fig = figure()
-	plt.title('FOIA Requests By Year')
-	plt.xlabel('Year')
-	plt.ylabel('Number of Requests')
-	plt.bar(X, Y)
-	plt.savefig('figures/yearly_total.png')
-	
-	fig = figure()
-	plt.title('FOIA Requests By Year')
-	plt.xlabel('Year')
-	plt.ylabel('Number of Requests')
-	foiaRequestsSuccess = filterfalse(isFoiaRequestFailed, foiaRequests)
-	for year in years:
-		year = 0
-	years = sorted(years)
-	successYears = {}
-	for year in years:
-		successYears[year] = 0
-	for foia in foiaRequestsSuccess:
-		date = getDate(foia['datetime_submitted'])
-		year = date.year
-		if year not in successYears.keys():
-			successYears[year] = 0
-		successYears[year] += 1
-	failedYears = {}
-	for year in years:
-		failedYears[year] = 0
-	foiaRequestsFailed =  filterfalse(isFoiaRequestSuccessful, foiaRequests)
-	for foia in foiaRequestsFailed:
-		date = getDate(foia['datetime_submitted'])
-		year = date.year
-		if year not in failedYears.keys():
-			failedYears[year] = 0
-		failedYears[year] += 1
-	Xsuccess = np.array(list(successYears.keys()))
-	Ysuccess = np.array(list(successYears.values()))
-	Xfailed = np.array(list(failedYears.keys()))
-	Yfailed = np.array(list(failedYears.values()))
-	sets = [
-		(Xsuccess, Ysuccess, 'Successful', 'green'),
-		(Xfailed, Yfailed, 'Unsuccessful', 'red')]
-	plotMultiBarGraph(sets)
-	plt.legend()
-	plt.savefig('figures/yearly_breakdown.png')
-	
-	fig = figure()
-	plt.title('Percentage of Successful FOIA Requests By Year')
-	plt.xlabel('Year')
-	plt.ylabel('Percent of Successful Requests')
-	X = years
-	Y = (Ysuccess / (Ysuccess + Yfailed)) * 100
-	plt.bar(years, Y)
-	plt.savefig('figures/yearly_percent_successful.png')
-	
-	return
+def plotSuccessesByDay(foiaRequests):
+	return plotSuccessesByGrouping(foiaRequests, getYearMonthDayDateRange(), 'date_year_month_day', 'Day', 'daily', plotBargraphs=False)
+
+
+def plotSuccessesByYearMonth(foiaRequests):
+	return plotSuccessesByGrouping(foiaRequests, getYearMonthDateRange(), 'date_year_month', 'Year-Month', 'year_monthly')
 
 
 def plotSuccessesByMonth(foiaRequests):
-	dates = {}
-	minDate = None
-	maxDate = None
-	Xlabels = []
-	for year in np.arange(YEAR_START-1, YEAR_END+2):
-		for month in np.arange(1, 13):
-			if (month < 10):
-				key = str(year) + '-0' + str(month)
-			else:
-				key = str(year) + '-' + str(month)
-			Xlabels.append(key)
-			dates[key] = {}
-			dates[key]['total'] = 0
-			dates[key]['successes'] = 0
-			dates[key]['failures'] = 0
-	for foia in foiaRequests:
-		date = getDate(foia['datetime_submitted'])
-		year = date.year
-		if (date.month < 10):
-			key = str(date.year) + '-0' + str(date.month)
-		else:
-			key = str(date.year) + '-' + str(date.month)
-		dates[key]['total'] += 1
-		if isFoiaRequestSuccessful(foia):
-			dates[key]['successes'] += 1
-		else:
-			dates[key]['failures'] += 1
-	Ytotal = []
-	Ysuccesses = []
-	Yfailures = []
-	YsuccessPercentage = []
-	for y in dates.values():
-		Ytotal.append(y['total'])
-		Ysuccesses.append(y['successes'])
-		Yfailures.append(y['failures'])
-		if y['total'] != 0:
-			YsuccessPercentage.append(y['successes'] / y['total'] * 100)
-		else:
-			YsuccessPercentage.append(0)
-	
-	fig = figure()
-	plt.title('FOIA Requests By Year and Month')
-	plt.xlabel('Month')
-	plt.ylabel('Number of Requests')
-	plt.bar(Xlabels, Ytotal)
-	plt.xticks(Xlabels, Xlabels, rotation='vertical')
-	plt.xlim(str(YEAR_START-1) + '-12', str(YEAR_END+1) + '-01')
-	plt.savefig('figures/monthly_total.png')
-	
-	fig = figure()
-	plt.title('FOIA Requests By Year and Month')
-	plt.xlabel('Month')
-	plt.ylabel('Number of Requests')
-	X = np.arange(0, len(Xlabels))
-	sets = [
-		(X, Ysuccesses, 'Successful', 'green'),
-		(X, Yfailures, 'Unsuccessful', 'red')]
-	plotMultiBarGraph(sets)
-	plt.xticks(X, Xlabels, rotation='vertical')
-	xRange = [-1,-1]
-	i = 0
-	for label in Xlabels:
-		if label == str(YEAR_START-1) + '-12':
-			xRange[0] = i
-		if label == str(YEAR_END+1) + '-01':
-			xRange[1] = i
-		i += 1
-	plt.xlim(xRange[0], xRange[1])
-	plt.legend()
-	plt.savefig('figures/monthly_breakdown.png')
-	
-	fig = figure()
-	plt.title('Percentage of Successful FOIA Requests By Year and Month')
-	plt.xlabel('Month')
-	plt.ylabel('Percentage of Successful Requests')
-	plt.bar(Xlabels, YsuccessPercentage)
-	plt.xticks(Xlabels, Xlabels, rotation='vertical')
-	plt.xlim(str(YEAR_START-1) + '-12', str(YEAR_END+1) + '-01')
-	plt.savefig('figures/monthly_percent_successful.png')
-	
-	minIndex = None
-	maxIndex = None
-	x = 0
-	for date in Xlabels:
-		if Ytotal[x] != 0:
-			if minIndex == None and Ytotal[x] != 0:
-				minIndex = x
-			maxIndex = x
-		x += 1
-	x = 0
-	yFilteredTotal = []
-	yFilteredSuccessPercent = []
-	for date in Xlabels:
-		if x >= minIndex and x <= maxIndex:
-			yFilteredTotal.append(Ytotal[x])
-			yFilteredSuccessPercent.append(YsuccessPercentage[x])
-		x += 1
-		
-	fig = figure()
-	plt.title('Histogram of FOIA Requests By Year and Month')
-	n, bins, patches = plt.hist(yFilteredTotal, bins='auto', edgecolor='black', density=True)
-	mu = np.mean(yFilteredTotal)
-	sigma = np.std(yFilteredTotal)
-	#x = np.linspace(bins[0], bins[len(bins)-1], 100)
-	x = np.linspace(0, bins[len(bins)-1], 100)
-	fit = stats.norm.pdf(x, mu, sigma)
-	plt.plot(x, fit, 'r--')
-	plt.savefig('figures/monthly_histogram.png')
-		
-	fig = figure()
-	plt.title('Histogram of Percentages of Successful FOIA Requests By Year and Month')
-	n, bins, patches = plt.hist(yFilteredSuccessPercent, bins='auto', edgecolor='black', density=True)
-	mu = np.mean(yFilteredSuccessPercent)
-	sigma = np.std(yFilteredSuccessPercent)
-	x = np.linspace(0, 100, 100)
-	fit = stats.norm.pdf(x, mu, sigma)
-	plt.plot(x, fit, 'r--')
-	plt.savefig('figures/monthly_histogram_successful_percentage.png')
-	
-	normalityTests(yFilteredTotal, 'FOIA Requests By Year and Month', 0.01)
-	normalityTests(yFilteredSuccessPercent, 'Percentages of Successful FOIA Requests By Year and Month', 0.01)
-	return
-'''
-	
+	resortedRequests = sorted(foiaRequests, key=lambda x: x['date_month'])
+	return plotSuccessesByGrouping(foiaRequests, getMonthDateRange(), 'date_month', 'Month', 'month', plotHistograms=False, doNormalityTests=False)
+
+
+def plotSuccessesByYear(foiaRequests):
+	return plotSuccessesByGrouping(foiaRequests, getYearDateRange(), 'date_year', 'Year', 'yearly', plotHistograms=False, doNormalityTests=False)
+
+
 def normalityTests(data, title, significanceLevel=0.05):
 	# Shapiro-Wilk test for normality
 	W, pValue = stats.shapiro(data)
@@ -516,133 +271,7 @@ def normalityTests(data, title, significanceLevel=0.05):
 		print('')
 		print('')
 	return
-	
-'''
-def plotSuccessesByAverageMonth(foiaRequests):
-	X = np.arange(0, 12)
-	data = {}
-	data['unnormalized'] = {}
-	data['normalized'] = {}
-	data['months'] = {}
-	data['years'] = {}
-	for year in np.arange(YEAR_START-1, YEAR_END+1):
-		data['years'][year] = {}
-	for month in X:
-		data['unnormalized'][month] = {}
-		data['unnormalized'][month]['total'] = 0
-		data['unnormalized'][month]['successes'] = 0
-		data['unnormalized'][month]['failures'] = 0
-		data['normalized'][month] = {}
-		data['normalized'][month]['total'] = 0
-		data['normalized'][month]['successes'] = 0
-		data['normalized'][month]['failures'] = 0
-		data['normalized'][month]['percentageSuccess'] = 0
-		for year in np.arange(YEAR_START-1, YEAR_END+1):
-			data['years'][year][month] = {}
-			data['years'][year][month]['total'] = 0
-			data['years'][year][month]['successes'] = 0
-			data['years'][year][month]['failures'] = 0
-	for foia in foiaRequests:
-		date = getDate(foia['datetime_submitted'])
-		year = date.year
-		month = date.month-1
-		data['unnormalized'][month]['total'] += 1
-		data['years'][year][month]['total'] += 1
-		if isFoiaRequestSuccessful(foia):
-			data['unnormalized'][month]['successes'] += 1
-			data['years'][year][month]['successes'] += 1
-		else:
-			data['unnormalized'][month]['failures'] += 1
-			data['years'][year][month]['failures'] += 1
-	for month in X:
-		activeYears = 0
-		sumTotal = 0
-		sumSuccesses = 0
-		sumfailures = 0
-		for year in np.arange(YEAR_START-1, YEAR_END+1):
-			if data['years'][year][month]['total'] != 0:
-				sumTotal = data['years'][year][month]['total']
-				sumSuccesses = data['years'][year][month]['successes']
-				sumfailures = data['years'][year][month]['failures']
-				activeYears += 1
-		data['normalized'][month]['total'] = sumTotal / activeYears
-		data['normalized'][month]['successes'] = sumSuccesses / activeYears
-		data['normalized'][month]['failures'] = sumfailures / activeYears
-		data['normalized'][month]['percentageSuccess'] = (sumSuccesses / activeYears) / (sumTotal / activeYears) * 100
-	unnormalizedTotal = []
-	unnormalizedSuccesses = []
-	unnormalizedFailures = []
-	unnormalizedPercentageSuccess = []
-	normalizedTotal = []
-	normalizedSuccesses = []
-	normalizedFailures = []
-	normalizedPercentageSuccess = []
-	for month in X:
-		unnormalizedTotal.append(data['unnormalized'][month]['total'])
-		unnormalizedSuccesses.append(data['unnormalized'][month]['successes'])
-		unnormalizedFailures.append(data['unnormalized'][month]['failures'])
-		unnormalizedPercentageSuccess.append(data['unnormalized'][month]['successes'] / data['unnormalized'][month]['total'] * 100)
-		normalizedTotal.append(data['normalized'][month]['total'])
-		normalizedSuccesses.append(data['normalized'][month]['successes'])
-		normalizedFailures.append(data['normalized'][month]['failures'])
-		normalizedPercentageSuccess.append(data['normalized'][month]['percentageSuccess'])
-	
-	fig = figure()
-	plt.title('FOIA Requests By Month (Unnormalized)')
-	plt.xlabel('Month')
-	plt.ylabel('Number of Requests')
-	plt.bar(X, unnormalizedTotal)
-	plt.xticks(X, MONTHS, rotation='horizontal')
-	plt.savefig('figures/month_unnormalized_total.png')
-	
-	fig = figure()
-	plt.title('FOIA Requests By Month (Unnormalized)')
-	plt.xlabel('Month')
-	plt.ylabel('Number of Requests')
-	sets = [
-		(X, unnormalizedSuccesses, 'Successful', 'green'),
-		(X, unnormalizedFailures, 'Unsuccessful', 'red')]
-	plotMultiBarGraph(sets)
-	plt.xticks(X, MONTHS, rotation='horizontal')
-	plt.savefig('figures/month_unnormalized_breakdown.png')
-	
-	fig = figure()
-	plt.title('Percentage of Successful FOIA Requests By Month (Unnormalized)')
-	plt.xlabel('Month')
-	plt.ylabel('Percentage of Successful Requests')
-	plt.bar(X, unnormalizedPercentageSuccess)
-	plt.xticks(X, MONTHS, rotation='horizontal')
-	plt.savefig('figures/month_unnormalized_percent_successful.png')
-	
-	fig = figure()
-	plt.title('FOIA Requests By Month (Normalized)')
-	plt.xlabel('Month')
-	plt.ylabel('Average Number of Requests')
-	plt.bar(X, normalizedTotal)
-	plt.xticks(X, MONTHS, rotation='horizontal')
-	plt.savefig('figures/month_normalized_total.png')
-	
-	fig = figure()
-	plt.title('FOIA Requests By Month (Normalized)')
-	plt.xlabel('Month')
-	plt.ylabel('Average Number of Requests')
-	sets = [
-		(X, normalizedSuccesses, 'Successful', 'green'),
-		(X, normalizedFailures, 'Unsuccessful', 'red')]
-	plotMultiBarGraph(sets)
-	plt.xticks(X, MONTHS, rotation='horizontal')
-	plt.savefig('figures/month_normalized_breakdown.png')
-	
-	fig = figure()
-	plt.title('Percentage of Successful FOIA Requests By Month (Normalized)')
-	plt.xlabel('Month')
-	plt.ylabel('Average Percentage of Successful Requests')
-	plt.bar(X, normalizedPercentageSuccess)
-	plt.xticks(X, MONTHS, rotation='horizontal')
-	plt.savefig('figures/month_normalized_percent_successful.png')
-	
-	return
-'''
+
 
 def printRequestStatuses(foiaRequests):
 	print('Record Statuses:')
@@ -692,10 +321,25 @@ def getDate(dateStr):
 
 
 @lru_cache(maxsize=None)
-def getDateRange(start=DATE_START, end=DATE_END):
+def getYearMonthDayDateRange(start=DATE_START, end=DATE_END):
 	dateStart = dt.datetime.strptime(start, "%Y-%m-%d")
 	dateEnd = dt.datetime.strptime(end, "%Y-%m-%d")
 	return [getDateStr(dateStart + dt.timedelta(days=x)) for x in range(0, (dateEnd - dateStart).days)]
+
+
+@lru_cache(maxsize=None)
+def getYearMonthDateRange():
+	return [dt.datetime(year=year, month=month, day=1).strftime("%Y-%m") for year in range(YEAR_START, YEAR_END+1) for month in range(1, 13)]
+
+
+@lru_cache(maxsize=None)
+def getMonthDateRange():
+	return ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+
+@lru_cache(maxsize=None)
+def getYearDateRange():
+	return [year for year in range(YEAR_START, YEAR_END+1)]
 
 
 def isStatusSuccessful(status):
