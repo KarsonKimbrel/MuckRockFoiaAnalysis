@@ -1,5 +1,6 @@
 from collections import defaultdict
 import datetime as dt
+from functools import lru_cache
 from itertools import filterfalse
 from itertools import groupby
 import numpy as np
@@ -11,9 +12,10 @@ import plotly.graph_objs as go
 import RetrieveDataset as retrieve
 import scipy.stats as stats
 
-
-YEAR_START = 2013
+YEAR_START = 2014
 YEAR_END = 2018
+DATE_START = '2014-01-01'
+DATE_END = '2019-01-01'
 DISP_FULL_TESTS = False
 
 
@@ -35,7 +37,7 @@ def main():
 	
 	printRequestStatuses(foiaRequests)
 	#print(foiaRequests[0])
-	plotRequestStatuses(foiaRequests)
+	#plotRequestStatuses(foiaRequests)
 	#plotSuccessesByYear(foiaRequests)
 	
 	#plotSuccessesByMonth(foiaRequests)
@@ -99,7 +101,7 @@ def plotRequestStatuses(foiaRequests):
 			
 	statusCount = dict(sorted(statuses.items(), key=operator.itemgetter(1)))
 	
-	fig = figure(7)
+	fig = figure()
 	plt.title('Breakdown of FOIA Request Statuses')
 	plt.pie(list(statusCount.values()), autopct='%1.1f%%', counterclock=False)
 	plt.axis('equal')
@@ -128,6 +130,50 @@ def plotRequestStatuses(foiaRequests):
 
 
 def plotSuccessesByDay(foiaRequests):
+	dateRange = getDateRange()
+	dailyRequestsGrouped = groupby(foiaRequests, key=lambda x: x['date_year_month_day'])
+	dailyTotal = defaultdict(int)
+	dailySuccessful = defaultdict(int)
+	for date, items in dailyRequestsGrouped:
+		requests = list(items)
+		dailyTotal[date] += len(requests)
+		for request in requests:
+			if request['is_successful']:
+				dailySuccessful[date] += 1
+	dailySuccessfulPercent = defaultdict(int)
+	for date in dateRange:
+		if dailyTotal[date] != 0:
+			dailySuccessfulPercent[date] = float(dailySuccessful[date]) / float(dailyTotal[date]) * 100
+	
+	fig = figure()
+	plt.title('Histogram of FOIA Requests By Day')
+	yFilteredTotal = list(dailyTotal.values())
+	n, bins, patches = plt.hist(yFilteredTotal, bins='auto', edgecolor='black', density=True)
+	mu = np.mean(yFilteredTotal)
+	sigma = np.std(yFilteredTotal)
+	x = np.linspace(0, bins[len(bins)-1], 100)
+	fit = stats.norm.pdf(x, mu, sigma)
+	plt.plot(x, fit, 'r--')
+	plt.savefig('figures/daily_histogram.png')
+	
+	fig = figure()
+	plt.title('Histogram of Percentages of Successful FOIA Requests By Day')
+	yFilteredSuccessPercent = list(dailySuccessfulPercent.values())
+	n, bins, patches = plt.hist(yFilteredSuccessPercent, bins='auto', edgecolor='black', density=True)
+	mu = np.mean(yFilteredSuccessPercent)
+	sigma = np.std(yFilteredSuccessPercent)
+	x = np.linspace(0, 100, 100)
+	fit = stats.norm.pdf(x, mu, sigma)
+	plt.plot(x, fit, 'r--')
+	plt.savefig('figures/daily_histogram_successful_percentage.png')
+	
+	normalityTests(yFilteredTotal, 'FOIA Requests By Day', 0.01)
+	normalityTests(yFilteredSuccessPercent, 'Percentages of Successful FOIA Requests By Day', 0.01)
+	
+	return
+
+'''
+def plotSuccessesByDayOld(foiaRequests):
 	dates = {}
 	Xlabels = []
 	for year in np.arange(YEAR_START-1, YEAR_END+2):
@@ -419,7 +465,7 @@ def plotSuccessesByMonth(foiaRequests):
 	normalityTests(yFilteredTotal, 'FOIA Requests By Year and Month', 0.01)
 	normalityTests(yFilteredSuccessPercent, 'Percentages of Successful FOIA Requests By Year and Month', 0.01)
 	return
-
+'''
 	
 def normalityTests(data, title, significanceLevel=0.05):
 	# Shapiro-Wilk test for normality
@@ -441,8 +487,9 @@ def normalityTests(data, title, significanceLevel=0.05):
 			print('Do not reject Ho. At the alpha={:.2f}'.format(significanceLevel) + ' significance level, there is insufficiant evidence to indicate that the distribution of ' + title + ' is not normal.')
 			print('')
 		print('The distribution of ' + title + ' IS normal.')
-	print('')
-	print('')
+	if DISP_FULL_TESTS:
+		print('')
+		print('')
 	
 	# Anderson-Darling test for normality
 	A2, critialValues, significanceLevels = stats.anderson(data, dist='norm')
@@ -465,11 +512,12 @@ def normalityTests(data, title, significanceLevel=0.05):
 			print('Reject Ho. At the alpha={:.2f}'.format(significanceLevel) + ' significance level, there is sufficiant evidence to indicate that the distribution of ' + title + ' is not normal.')
 			print('')
 		print('The distribution of ' + title + ' IS NOT normal.')
-	print('')
-	print('')
+	if DISP_FULL_TESTS:
+		print('')
+		print('')
 	return
 	
-
+'''
 def plotSuccessesByAverageMonth(foiaRequests):
 	X = np.arange(0, 12)
 	data = {}
@@ -594,7 +642,7 @@ def plotSuccessesByAverageMonth(foiaRequests):
 	plt.savefig('figures/month_normalized_percent_successful.png')
 	
 	return
-
+'''
 
 def printRequestStatuses(foiaRequests):
 	print('Record Statuses:')
@@ -632,11 +680,22 @@ def printDocumentTitlesOnDay(foiaRequests, dateTime):
 	return
 
 
+def getDateStr(date):
+	return date.strftime("%Y-%m-%d")
+
+
 def getDate(dateStr):
 	try:
 		return dt.datetime.strptime(dateStr, "%Y-%m-%dT%H:%M:%S.%f").date()
 	except:
 		return dt.datetime.strptime(dateStr, "%Y-%m-%dT%H:%M:%S").date()
+
+
+@lru_cache(maxsize=None)
+def getDateRange(start=DATE_START, end=DATE_END):
+	dateStart = dt.datetime.strptime(start, "%Y-%m-%d")
+	dateEnd = dt.datetime.strptime(end, "%Y-%m-%d")
+	return [getDateStr(dateStart + dt.timedelta(days=x)) for x in range(0, (dateEnd - dateStart).days)]
 
 
 def isStatusSuccessful(status):
